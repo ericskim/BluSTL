@@ -1,4 +1,4 @@
-function controller = STLC_get_traffic_controller(Sys,enc)
+function controller = STLC_get_controller(Sys,enc)
 % STLC_get_controller constructs the controller object for an STLC_lti instance
 %                           
 % Input: 
@@ -123,6 +123,11 @@ Bdw=Bd(:,nu+1:end);
 Ddu=Dd(:,1:nu);
 Ddw=Dd(:,nu+1:end);
 
+% Declare flow variables 
+seg_flow = sdpvar(Sys.nSegments);
+onramp_flow = sdpvar(Sys.nOnramps,1);
+offramp_flow = sdpvar(Sys.nOfframps,1);
+
 % Constraints for states (if any)
 for k=1:2*L
     if k==1
@@ -133,7 +138,30 @@ for k=1:2*L
         Fdyn = [Fdyn, Xdone(:,k) - (1-done(k-1))*M <=  X(:,k) <= Xdone(:, k)+ (1-done(k-1))*M];
         
         % not done values
-        Fdyn = [Fdyn, ((Ad*X(:,k-1) + Bdu*U(:,k-1) + Bdw*W( :, k-1 )) - done(k-1)*M) <=  X(:,k) <= ((Ad*X(:,k-1) + Bdu*U(:,k-1) + Bdw*W( :, k-1 )) + done(k-1)*M)];
+        %Fdyn = [Fdyn, ((Ad*X(:,k-1) + Bdu*U(:,k-1) + Bdw*W( :, k-1 )) - done(k-1)*M) <=  X(:,k) <= ((Ad*X(:,k-1) + Bdu*U(:,k-1) + Bdw*W( :, k-1 )) + done(k-1)*M)];
+        for segment = 1:Sys.nSegments
+            
+            if Sys.has_onramp(segment)
+                Fdyn = [Fdyn, ]; % Constraint for flow exiting onramps                
+                Fdyn = [Fdyn, ]; % Conservation of mass for onramps
+            
+                if Sys.is_metered(segment)
+                    Fdyn = [Fdyn, ]; % Flow cannot exceed the metered rate
+                end
+                
+            end
+            if Sys.has_offramp(segment)
+                Fdyn = [Fdyn, ]; % Constraint for flow entering offramps
+            end
+            
+            Fdyn = [Fdyn, ]; % Conservation of mass for segments
+            
+
+            if segment ~= Sys.nSegments
+                Fdyn = [Fdyn, ]; % Constraint for flow entering next segment 
+            end
+            
+        end
     end
 end
 

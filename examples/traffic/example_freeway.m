@@ -1,81 +1,51 @@
-%% Defining Network Topology
+%% Example Freeway Network
+% Model and variable names based off the model found in: 
+% "Optimal freeway ramp metering using the asymmetric cell transmission
+% model", G. Gomes and R. Horowitz.  
+% 
+% 
 
-Freeway.nLinks = 5;
-Freeway.nSigs = 3;
+%% Defining Network Parameters 
 
-%% State space
-Freeway.xMax = [80, 25, 80, 25, 80];
+CTM.nSegments = 3;
+CTM.has_onramp = [1,1,0];  % 1 = onramp exists on segment
+CTM.has_offramp = [1,0,0]; %
+CTM.is_metered = [1,1,0]; % 1 = metered, 0 = not metered
 
-%% Max flow
-Freeway.c = [30,10,30,10,30];
+% State space
+CTM.seg_NMax = [11.5, 11.5, 11.5];
+% NOTE: Onramps implicity have infinite occupancy.
 
-%% Define demand parameters
-Freeway.beta = zeros(Freeway.nLinks);
-Freeway.beta(1,3) = .8;
-Freeway.beta(3,5) = .8;
-Freeway.beta(2,3) = 1;
-Freeway.beta(4,5) = 1;
+% Blending coefficient
+CTM.gamma = ones(CTM.nSegments, 1);
 
-%% Define control parameters
-% For each signal
-Freeway.U = cell(Freeway.nSigs,1);
-Freeway.U{1} = {{1}; {1,2}};
-Freeway.U{2} = {{3}; {3,4}};
-Freeway.U{3} = {{5}};
+% Max flow
+CTM.seg_Fbar = [1.66, 1.66, 1.66];
 
-% Figure out how many total control actions there are
-Freeway.numU = 1;
-Freeway.config_per_sig = zeros(Freeway.nSigs,1);
-for i = 1:size(Freeway.U,1) % iterate over signals
-    Freeway.numU = Freeway.numU * size(Freeway.U{i},1);
-    Freeway.config_per_sig(i) = size(Freeway.U{i},1);
-end
+% Freeflow Velocity 
+CTM.freeflow_velocity = [0.7241, 0.7241, 0.7241];
 
-%% Find downstream vertices
-Freeway.down_vertex = cell(Freeway.nLinks,1);
-Freeway.up_vertex = cell(Freeway.nLinks,1);
+% Split ratio from segments to offramps
+CTM.beta = [.1, 0,0];
+CTM.beta_bar = zeros(size(CTM.beta)) ...
+               + (CTM.beta > 0) .* (1 - CTM.beta);
 
-for sig = 1:Freeway.nSigs
-    for sigConfig = 1:size(Freeway.U{sig},1) %iterate over signal configurations
-        for link = cell2mat(Freeway.U{sig}{sigConfig})
-            Freeway.down_vertex{link} = sig;
-        end
-    end
-end
+% Onramp metered flow rate ranges
+CTM.umin = [.2,.2,0];
+CTM.umax = [.8,.8,0];
 
-%% Find upstream and downstream links 
-Freeway.down_links = cell(Freeway.nLinks,1);
-Freeway.up_links = cell(Freeway.nLinks,1); 
+% Maximum demand to onramps and freeway segment
+CTM.segD = [1, 0, 0];
+CTM.onrampD = [.4, .4, 0];
 
-for link = 1:Freeway.nLinks
-    Freeway.down_links{link} = find(Freeway.beta(link,:));
-    Freeway.up_links{link} = find(Freeway.beta(:,link));
-end
+% Onramp flow allocation
+CTM.Xi = ones(CTM.nSegments,1);
 
-%% Find upstream vertices
-for link = 1:Freeway.nLinks
-    if ~isempty(Freeway.up_links{link})
-        Freeway.up_vertex{link} =  Freeway.down_vertex{Freeway.up_links{link}(1)};
-    end
-end
+% Congestion Wave Speeds
+CTM.w = .181 * ones(CTM.nSegments,1);
 
-%% Define supply parameters 
-Freeway.alpha = cell(Freeway.nLinks,1);
-
-% Define initial supply data structure
-for link = 1:Freeway.nLinks
-    if ~isempty(Freeway.up_links{link})
-        Freeway.alpha{link} = cell(Freeway.config_per_sig(Freeway.up_vertex{link}),1);
-    end
-end
-
-Freeway.alpha{3}{1} = [1.0, 0, 0, 0, 0];
-Freeway.alpha{3}{2} = [.7, .3, 0, 0, 0];
-Freeway.alpha{5}{1} = [0, 0, 1.0, 0, 0];
-Freeway.alpha{5}{2} = [0, 0, .7, .3, 0];
-
-%% Disturbance sets
-Freeway.d = [15,2.5, 0, 2.5,0];
+% Set objective (if it isn't to maximize satisfaction robustness)
+CTM.objective = 'min_ramp_wait';
 
 %% Declare System
-Sys = STLC_traffic(Freeway);
+Sys = STLC_freeway(CTM);

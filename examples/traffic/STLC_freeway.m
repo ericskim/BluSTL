@@ -1,5 +1,5 @@
-classdef STLC_traffic
-    % STLC_traffic for cell transmission model 
+classdef STLC_freeway
+    % STLC_freeway for cell transmission model 
     % 
     
     % system properties
@@ -10,26 +10,30 @@ classdef STLC_traffic
         nd
         x0
         system_data
-        nLinks
-        nSigs
-        xMax
-        c
+        nSegments
+        has_onramp
+        has_offramp
+        is_metered
+        seg_NMax
+        gamma
+        seg_Fbar
+        freeflow_velocity
         beta
-        U
-        numU
-        config_per_sig
-        down_vertex
-        up_vertex
-        down_links
-        up_links
-        alpha
-        d
+        beta_bar
+        segD
+        onrampD
+        Xi
+        w
+        
+        ramp2X
+        nOnramps
+        
     end
     
     % controller properties
     properties
-        u_lb
-        u_ub
+        umin
+        umax
         u_delta
         ts         % sampling time
         L          % horizon
@@ -77,62 +81,37 @@ classdef STLC_traffic
     end
     
     methods
-        function Sys = STLC_traffic(model)
+        function Sys = STLC_freeway(model)
             
-            Sys.nLinks = model.nLinks;
-            Sys.nSigs = model.nSigs;
-            Sys.xMax = model.xMax;
-            Sys.c = model.c;
+            Sys.nSegments = model.nSegments;
+            Sys.has_onramp = model.has_onramp;
+            Sys.nOnramps = size(find(Sys.has_onramp));
+            
+            Sys.ramp2X = zeros(size(Sys.nSegments));
+            for ramp = find(Sys.has_onramp)
+                Sys.ramp2X(ramp) = Sys.nSegments + ramp;
+            end
+            
+            Sys.has_offramp = model.has_offramp;
+            Sys.nOfframps = size(find(Sys.has_offramp));
+            
+            Sys.is_metered = model.is_metered;
+            Sys.seg_NMax = model.segNMax;
+            Sys.gamma = model.gamma;
+            Sys.seg_Fbar = model.seg_Fbar;
+            Sys.freeflow_velocity = model.freeflow_velocity;
             Sys.beta = model.beta;
-            Sys.U = model.U;
-            Sys.numU = model.numU;
-            Sys.config_per_sig = model.config_per_sig;
-            Sys.down_vertex = model.down_vertex;
-            Sys.up_vertex = model.up_vertex;
-            Sys.down_links = model.down_links;
-            Sys.up_links = model.up_links;
-            Sys.alpha = model.alpha;
-            Sys.d = model.d;
+            Sys.beta_bar = model.beta_bar;
+            Sys.segD = model.segD;
+            Sys.onrampD = model.onrampD;
+            Sys.Xi = model.Xi;
+            Sys.w = model.w;
+            Sys.umin = model.umin;
+            Sys.umax = model.umax;
             
-%             nx = max([size(A,1), size(Bu,1), size(Bw,1),1]);
-%             nu = max([size(Bu,2), size(Du,1)]);
-%             if nu == 0
-%                 errormsg('System must have at least one input (non empty Bu or Du matrix)');
-%             end
-%             nw = max([size(Bw,2), size(Dw,1),1]);
-%             ny = max([size(C,1), size(Du,1), size(Dw,1),1]);
-            
-            % default plots everything
-            Sys.plot_x = 1:Sys.nLinks;
-            %Sys.plot_y = 1:max([size(C,1), size(Du,1), size(Dw,1)]);
-            Sys.plot_d = 1:Sys.nLinks;
-            
-            
-%             Sys.sys = ss(A,[Bu Bw],C,[Du Dw]);
-%             Sys.nx = size(A,2);
-%             Sys.nu = size(Bu,2);
-%             Sys.nw = size(Bw,2);
-%             Sys.ny = size(C,1);
-            Sys.x0 = zeros(Sys.nLinks,1);
-             
-           
-            % default label names
-%             Sys.xlabel = cell(1,nx);
-%             for iX = 1:Sys.nx
-%                 Sys.xlabel{iX} = ['x' num2str(iX)];
-%             end
-%             
-%             for iY = 1:Sys.ny
-%                 Sys.ylabel{iY} = ['y' num2str(iY)];
-%             end
-%             
-%             for iU = 1:Sys.nu
-%                 Sys.ulabel{iU} = ['u' num2str(iU)];
-%             end
-%             
-%             for iW = 1:Sys.nw
-%                 Sys.wlabel{iW} = ['w' num2str(iW)];
-%             end
+            Sys.nu = size(find(Sys.has_onramp));
+
+            Sys.x0 = zeros(Sys.nSegments + size(find(Sys.has_onramp)),1);
             
             % default options
             Sys.solver_options = sdpsettings('solver','gurobi','verbose',1, 'cachesolvers',1);
@@ -144,10 +123,12 @@ classdef STLC_traffic
             Sys.nb_stages = 1;
             Sys.stop_button = 0;
             
+            
+            
             % default values for input constraints - note, forces u to 0
             %Sys.u_lb = zeros(1,Sys.nu);
             %Sys.u_ub = zeros(1,Sys.nu);
-            %Sys.u_delta = Inf*ones(1,Sys.nu);
+            %Sys.u_delta = Inf*ones(1,);
             
             % default values for disturbance constraints - note:w_lb and w_ub are relative to Wref
             % i.e.,   wref+w_lb  <= w <= wref + w_ub. Thus by default, w == Wref
@@ -158,10 +139,10 @@ classdef STLC_traffic
         
         % TODO continuous-time for system step, interface to other (NL,
         % Simulink, external) dynamics)
-        function [x1, y0] = system_step(Sys, x0, u0, w0)
-            x1 = Sys.sysd.A*x0+ Sys.sysd.B*[u0; w0];
-            y0 = Sys.sysd.C*x0+ Sys.sysd.D*[u0; w0];
-        end
+%         function [x1, y0] = system_step(Sys, x0, u0, w0)
+%             x1 = Sys.sysd.A*x0+ Sys.sysd.B*[u0; w0];
+%             y0 = Sys.sysd.C*x0+ Sys.sysd.D*[u0; w0];
+%         end
                
         % default objective function r is the robust sat. and wr a weight 
         function obj = get_objective(Sys, X, Y, U,W, rho,wr)

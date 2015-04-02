@@ -1,24 +1,10 @@
-# BluSTL
+# BluSTL Traffic Fork 
 BluSTL (pronounced "blue steel") is a MATLAB toolkit for automatically generating hybrid controllers from specifications written in Signal Temporal Logic.
 
-# Installing
+This fork of the [original BluSTL repository](https://github.com/BluSTL/BluSTL) adds a freeway traffic example with dynamics based off of the [asymmetric cell transmission model](http://www.me.berkeley.edu/~horowitz/Publications_files/Papers_numbered/Journal/80J_Gomes_TRC06.pdf). The system dynamics are piecewise affine but we adopt a different form that more succinctly encodes traffic flow.
 
-BluSTL depends on YALMIP, which is best obtained with the Multi-Parametric Toolbox, or MPT3, see http://control.ee.ethz.ch/~mpt/3/Main/Installation.
+# Project Status
+The example is currently incomplete.
 
-Most experiments have been done with the Gurobi solver as
-back-end, though other solvers might work as well. For the example to work without modifications
-though, Gurobi needs to be installed and configured for Matlab. See http://www.gurobi.com.
-
-Once YALMIP (or MPT3), the only thing to do  is to add the path BluSTL/src to Matlab paths.
-
-# Testing
-
-Go into BluSTL/examples/tutorials and run tutorial1.
-
-# Documentation
-
-The file BluSTL/BluSTL_tutorial.pdf describes some theoretical background with references. In addition to that, the file BluSTL/doc/index.html links to documentation generated from the Matlab code. 
-
-# Contact us
-
-Questions are to be addressed to donze@berkeley.edu or vasu@caltech.edu.
+# Contact
+Questions at: eskim@berkeley.edu
